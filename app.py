@@ -35,7 +35,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-GROQ_API_KEY = "YOUR_GROQ_API_KEY"
+# Secure API Key configuration
+if "GROQ_API_KEY" in st.secrets:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+else:
+    GROQ_API_KEY = "YOUR_GROQ_API_KEY"
 
 # ── SYSTEM PROMPT ────────────────────────────────────────
 SYSTEM_PROMPT = """You are the Pocket CA Agent, a highly precise, reliable, and brutally honest AI financial assistant.
@@ -75,6 +79,25 @@ def trim_message(hist, max_message=10):
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 collection = chroma_client.get_or_create_collection(name="savetax_knowledge")
 
+TAX_KNOWLEDGE = """🛡️ Section 80C (Limit: ₹1,50,000/year):
+EPF, PPF, ELSS, NSC, SSY, NPS, Life Insurance Premium, Children Tuition Fees, Home Loan Principal, Tax-Saving FDs.
+
+🏥 Section 80D (Medical Insurance):
+Self & Family: up to ₹25,000. Parents under 60: ₹25,000. Senior citizen parents: ₹50,000. Preventive checkup: ₹5,000.
+
+🏠 Home & Education Loans:
+Section 24(b): up to ₹2,00,000 on home loan interest.
+Section 80E: full interest on education loan, no limit, 8 years.
+
+👴 Additional Deductions:
+80CCD(1B): extra ₹50,000 for NPS.
+80TTA: ₹10,000 on savings account interest (₹50,000 for seniors under 80TTB).
+80G: 50-100% on donations to registered NGOs.
+HRA / 80GG: up to ₹60,000/year for non-salaried rent payers."""
+
+if collection.count() == 0:
+    collection.add(documents=[TAX_KNOWLEDGE], ids=["0"])
+
 # ── TOOLS ────────────────────────────────────────────────
 web_search = DuckDuckGoSearchRun()
 
@@ -88,7 +111,7 @@ def CAlocator(city: str) -> str:
 
 @tool
 def invoice(client_name: str, items_json: str, is_inter_state: bool = False) -> str:
-    """Generates a professional, beautifully styled HTML invoice bill and saves it locally."""
+    """Generates a professional GST tax invoice bill."""
     try:
         items = json.loads(items_json)
         inv_no = f"INV-{datetime.date.today().strftime('%Y%m%d')}-01"
@@ -156,11 +179,7 @@ def save_tax(question: str) -> str:
 # ── ✅ CACHED AGENT SETUP ─────────────────────────────────
 @st.cache_resource
 def get_agent():
-    llm = ChatGroq(
-        api_key=GROQ_API_KEY,
-        model="llama-3.1-8b-instant",  # Or llama-3.3-70b-versatile based on your plan
-        temperature=0.6
-    )
+    llm = ChatGroq(api_key=GROQ_API_KEY, model="llama-3.1-8b-instant", temperature=0.6)
     tools = [gst_calculator, save_tax, CAlocator, invoice, web_search]
     return create_react_agent(llm, tools)
 
@@ -179,12 +198,18 @@ if "display_messages" not in st.session_state:
 if "prefill" not in st.session_state:
     st.session_state.prefill = ""
 
-# ── SIDEBAR INTERFACE ────────────────────────────────────
+# ── 💡 SIDEBAR INTERFACE (YOUR CLEAN DESIGN) ──────────────
 with st.sidebar:
     st.markdown("## 💼 PocketCA")
     st.markdown("---")
     st.markdown("**What I can help with:**")
-    st.markdown("📊 GST Calculator\n\n💰 Income Tax Planning\n\n🧾 GST Invoice Generation\n\n🏦 Tax Saving Suggestions")
+    st.markdown("📊 GST Calculator")
+    st.markdown("💰 Income Tax Planning")
+    st.markdown("🧾 GST Invoice Generation")
+    st.markdown("🏦 Tax Saving Suggestions")
+    st.markdown("👨‍💼 CA Assistance")
+    st.markdown("📑 Tax Deductions (80C, 80D, NPS)")
+    st.markdown("🔍 Tax & GST Information")
     st.markdown("---")
     
     if st.button("🗑️ Clear Chat"):
@@ -194,7 +219,10 @@ with st.sidebar:
         save_memory(st.session_state.chat_history)
         st.rerun()
 
-# ── MAIN APPLICATION INTERFACE ───────────────────────────
+    st.markdown("---")
+    st.caption("Built with LangGraph + Groq + ChromaDB + Streamlit")
+
+# ── 💡 MAIN APPLICATION INTERFACE (CORRECT INDENTATION) ───
 st.markdown("# 💼 PocketCA")
 st.markdown("Your AI Chartered Accountant — GST, Tax Planning, Invoices & Financial Guidance.")
 st.markdown("---")
@@ -202,23 +230,34 @@ st.markdown("---")
 st.markdown("### 💡 Try these:")
 col1, col2, col3, col4 = st.columns(4)
 
-if col1.button("📊 Calculate GST"):
-    st.session_state.prefill = "Calculate GST for ₹50,000 at 18%"
-if col2.button("💰 Save Tax"):
-    st.session_state.prefill = "My salary is ₹12 lakh. How can I save maximum tax?"
-if col3.button("🧾 Generate Invoice"):
-    st.session_state.prefill = "Generate invoice for Rohan: 5 items of consulting work, rate 2000 each, 18% gst"
-if col4.button("🏦 Tax Deductions"):
-    st.session_state.prefill = "Explain all deductions under 80C, 80D and NPS"
+with col1:
+    if st.button("📊 Calculate GST"):
+        st.session_state.prefill = "Calculate GST for ₹50,000 at 18%"
+        st.rerun()
+
+with col2:
+    if st.button("💰 Save Tax"):
+        st.session_state.prefill = "My salary is ₹12 lakh. How can I save maximum tax?"
+        st.rerun()
+
+with col3:
+    if st.button("🧾 Generate Invoice"):
+        st.session_state.prefill = "Generate GST invoice for software development service worth ₹25,000"
+        st.rerun()
+
+with col4:
+    if st.button("🏦 Tax Deductions"):
+        st.session_state.prefill = "Explain all deductions under 80C, 80D and NPS"
+        st.rerun()
 
 st.markdown("---")
 
-# Render active layout logs using display_messages tracker
+# Render historical context
 for msg in st.session_state.display_messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
 
-# Capture live text entries
+# Capture text entries
 user_msg = st.chat_input("Ask PocketCA a financial question...")
 
 if st.session_state.prefill and not user_msg:
