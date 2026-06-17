@@ -1,6 +1,6 @@
 langchain
 langgraph
-langchain-prebuilt
+langchain.prebuilt
 langchain-community
 langchain-core
 langchain-groq
@@ -12,3 +12,4 @@ requests
 streamlit
 reportlab
 python-dotenv
+streamlit
