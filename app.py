@@ -7,8 +7,8 @@ from langchain_groq import ChatGroq
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from langchain.schema import messages_from_dict, messages_to_dict
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage,messages_from_dict, messages_to_dict
+
 
 # ── STREAMLIT PAGE CONFIG ────────────────────────────────
 st.set_page_config(
@@ -75,7 +75,7 @@ def trim_message(hist, max_message=10):
     recent_msg = [msg for msg in hist if not isinstance(msg, SystemMessage)][-max_message:]
     return sys_msg + recent_msg
 
-# ── VECTOR STORAGE (RAG) ─────────────────────────────────
+
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 collection = chroma_client.get_or_create_collection(name="savetax_knowledge")
 
