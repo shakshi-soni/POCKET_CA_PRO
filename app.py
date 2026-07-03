@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import ast
+import glob
 import streamlit as st
 from streamlit_option_menu import option_menu
 from langchain_groq import ChatGroq
@@ -168,7 +169,7 @@ if not os.getenv("GROQ_API_KEY") and "GROQ_API_KEY" in st.secrets:
 
 @st.cache_resource
 def initialize_engines():
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embeddings = HuggingFaceEmbedembeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.0)
     chroma_client = chromadb.PersistentClient(path="./chroma_db")
     
@@ -340,7 +341,7 @@ def invoice_generator(invoice_no: str, company_name: str, client_name: str, clie
     sanitized_items.append({"name": "CGST (9.0%)", "price": total_gst / 2, "qty": 1})
     sanitized_items.append({"name": "SGST (9.0%)", "price": total_gst / 2, "qty": 1})
 
-    filename = generate_invoice(invoice_no=invoice_no, company_name=company_name, client_name=client_name, client_phone=client_phone, client_email=client_address, items=sanitized_items, payment_method=payment_method, bank_name=bank_name, bank_account=bank_account)
+    filename = generate_invoice(invoice_no=invoice_no, company_name=company_name, client_name=client_name, client_phone=client_phone, client_email=client_email, client_address=client_address, items=sanitized_items, payment_method=payment_method, bank_name=bank_name, bank_account=bank_account)
     
     st.session_state["last_generated_pdf"] = filename
     return f"SUCCESS: Invoice compiled perfectly as '{filename}'."
@@ -500,14 +501,25 @@ if selected_page == "AI Invoice Generator":
         with st.chat_message("assistant"):
             with st.spinner("Processing optimization pipelines..."):
                 try:
+                    # Run agent loops
                     response = agent.invoke({"messages": st.session_state["langchain_history"][-10:]})
                     st.session_state["langchain_history"] = response["messages"]
                     agent_reply = response["messages"][-1].content
                     
+                    # Tool tracing ring for file detection back-binding
+                    for msg in reversed(response["messages"]):
+                        if hasattr(msg, "tool_calls") and msg.tool_calls:
+                            for tc in msg.tool_calls:
+                                if tc.get("name") == "invoice_generator":
+                                    pdf_files = glob.glob("invoice_*.pdf")
+                                    if pdf_files:
+                                        latest_pdf = max(pdf_files, key=os.path.getctime)
+                                        st.session_state["last_generated_pdf"] = latest_pdf
+
                     st.write(agent_reply)
                     st.session_state["messages"].append({"role": "ai", "content": agent_reply})
                     
-                    # Refresh page to instantly show sidebar download button state update
+                    # Synchronize the UI layer state variables immediately
                     st.rerun()
                     
                 except Exception as err:
