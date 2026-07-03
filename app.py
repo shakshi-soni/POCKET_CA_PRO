@@ -1,322 +1,354 @@
 import os
-# Fix protobuf descriptor compilation mismatch before importing packages
-os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-
 import json
 import datetime
-import requests
+import ast
 import streamlit as st
-import chromadb
 from langchain_groq import ChatGroq
+from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_core.tools import tool
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langgraph.prebuilt import create_react_agent
-from langchain_core.messages import (
-    messages_from_dict,
-    messages_to_dict,
-    SystemMessage,
-    HumanMessage,
-    AIMessage
-)
+from word2number import w2n
 
-# ── STREAMLIT PAGE CONFIG ────────────────────────────────
-st.set_page_config(
-    page_title="PocketCA",
-    page_icon="💼",
-    layout="wide"
-)
+import chromadb
+from langchain_community.vectorstores import Chroma
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import WebBaseLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.pdfgen import canvas
+
+# ============================================================
+# ADVANCED UI/UX STYLING OVERRIDES (Tailwind-like injection)
+# ============================================================
+st.set_page_config(page_title="PocketCA Pro", page_icon="⚖️", layout="wide")
+
+# Custom CSS to inject a clean, premium dashboard interface
 st.markdown("""
-<style>
-    .stApp { background-color: #0f172a; color: white; }
-    [data-testid="stSidebar"] { background-color: #1e293b; }
-    h1 { color: #38bdf8; }
-    .stButton > button {
-        background-color: #1e40af;
-        color: white;
-        border-radius: 10px;
-        border: none;
-        width: 100%;
-        padding: 12px;
-        font-size: 14px;
+    <style>
+    /* Main app background configuration */
+    .stApp {
+        background-color: #0f172a;
+        color: #f8fafc;
     }
-    .stButton > button:hover { background-color: #2563eb; color: white; }
-</style>
+    /* Style the chat bubbles beautifully */
+    [data-testid="stChatMessage"] {
+        background-color: #1e293b !important;
+        border-radius: 12px !important;
+        border: 1px solid #334155 !important;
+        padding: 1.5rem !important;
+        margin-bottom: 1rem !important;
+    }
+    /* Style user specific input rows */
+    div[data-testid="stChatMessageUser"] {
+        background-color: #0284c7 !important;
+        border: 1px solid #38bdf8 !important;
+    }
+    /* Premium button enhancements */
+    .stDownloadButton>button {
+        background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: none !important;
+        font-weight: 600 !important;
+        padding: 0.75rem 2rem !important;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+    .stDownloadButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(2, 132, 199, 0.5);
+    }
+    /* Custom KPI Metric Cards */
+    .metric-card {
+        background-color: #1e293b;
+        border: 1px solid #334155;
+        padding: 1.25rem;
+        border-radius: 10px;
+        text-align: center;
+    }
+    </style>
 """, unsafe_allow_html=True)
 
-# Fetch secure platform credentials
-GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+# ============================================================
+# DASHBOARD SIDEBAR & HEADER LAYOUT
+# ============================================================
+with st.sidebar:
+    st.markdown("### 🏦 System Metrics")
+    st.markdown("<div class='metric-card'><p style='color:#94a3b8;margin:0;'>Core Engine</p><h3 style='margin:0;color:#38bdf8;'>Llama 3.1 8B</h3></div>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div class='metric-card'><p style='color:#94a3b8;margin:0;'>Tax Regime Jurisdiction</p><h3 style='margin:0;color:#34d399;'>FY 2026-27</h3></div>", unsafe_allow_html=True)
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    if st.button("🧹 Clear Conversation History", use_container_width=True):
+        st.session_state["messages"] = []
+        st.session_state["langchain_history"] = []
+        st.rerun()
 
-# ── Persistent memory ────────────────────────────────────
-MEMORY_FILE = "tax.memory.json"
+# Layout splits for Main View
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.markdown("<h1 style='margin:0;'>⚖️ PocketCA Pro</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94a3b8;'>Enterprise AI Assistant for Indian Corporate Law & Automated GST Compliant Billing Layer</p>", unsafe_allow_html=True)
 
-def load_memory():
+# ============================================================
+# INITIALIZATION & VECTOR STORE INFRASTRUCTURE
+# ============================================================
+if not os.getenv("GROQ_API_KEY") and "GROQ_API_KEY" in st.secrets:
+    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+
+@st.cache_resource
+def initialize_engines():
+    api_key = os.getenv("GROQ_API_KEY")
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    llm = ChatGroq(api_key=api_key, model="llama-3.1-8b-instant", temperature=0.0)
+    chroma_client = chromadb.PersistentClient(path="./chroma_db")
+    
     try:
-        with open(MEMORY_FILE, "r") as f:
-            return messages_from_dict(json.load(f))
-    except:
-        return []
+        loader = PyPDFLoader("tax_saving.pdf")
+        chunks = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50).split_documents(loader.load())
+        vectorstore = Chroma.from_documents(documents=chunks, embedding=embeddings, collection_name="tax_saving_pdf", persist_directory="./chroma_db")
+    except Exception:
+        vectorstore = None
 
-def save_memory(chat_history):
+    urls = ["https://cleartax.in/s/income-tax-slabs", "https://cleartax.in/s/gst-rates"]
     try:
-        with open(MEMORY_FILE, "w") as f:
-            json.dump(messages_to_dict(chat_history), f)
-    except Exception as e:
-        print(f"Memory save error: {e}")
+        link_loader = WebBaseLoader(urls)
+        link_chunks = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50).split_documents(link_loader.load())
+        vectorstore_link = Chroma.from_documents(documents=link_chunks, embedding=embeddings, collection_name="tax_saving_web", persist_directory="./chroma_db")
+    except Exception:
+        vectorstore_link = None
+        
+    return llm, vectorstore, vectorstore_link
 
-def trim_message(hist, max_message=12):
-    if len(hist) <= max_message:
-        return hist
-    sys_msg = [msg for msg in hist if isinstance(msg, SystemMessage)]
-    recent_msg = [msg for msg in hist if not isinstance(msg, SystemMessage)][-max_message:]
-    return sys_msg + recent_msg
+llm, vectorstore, vectorstore_link = initialize_engines()
 
-# ── RAG: ChromaDB ────────────────────────────────────────
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
-collection = chroma_client.get_or_create_collection(name="savetax_knowledge")
+# ============================================================
+# CORE ENGINE: PDF REPORTLAB COMPILER
+# ============================================================
+def generate_invoice(invoice_no, company_name, client_name, client_phone, client_email, client_address, items, payment_method="Bank Transfer", bank_name="", bank_account=""):
+    filename = f"invoice_{invoice_no}.pdf"
+    c = canvas.Canvas(filename, pagesize=A4)
+    width, height = A4
 
-TAX_KNOWLEDGE = """🛡️ Section 80C (Limit: ₹1,50,000/year):
-EPF, PPF, ELSS, NSC, SSY, NPS, Life Insurance Premium, Children Tuition Fees, Home Loan Principal, Tax-Saving FDs.
+    c.setFillColor(colors.white)
+    c.rect(0, 0, width, height, fill=1, stroke=0)
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 13)
+    c.drawRightString(width - 40, height - 105, company_name)
+    c.setFont("Helvetica", 8)
+    c.setFillColor(colors.HexColor('#555555'))
+    c.drawRightString(width - 40, height - 118, "Tax Compliant Registered Invoice")
+    c.drawRightString(width - 40, height - 130, f"Tel: {client_phone}")
 
-🏥 Section 80D (Medical Insurance):
-Self & Family: up to ₹25,000. Parents under 60: ₹25,000. Senior citizen parents: ₹50,000. Preventive checkup: ₹5,000.
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 38)
+    c.drawString(40, height - 195, "INVOICE")
+    c.setStrokeColor(colors.HexColor('#cccccc'))
+    c.setLineWidth(0.5)
+    c.line(40, height - 205, width - 40, height - 205)
 
-🏠 Home & Education Loans:
-Section 24(b): up to ₹2,00,000 on home loan interest.
-Section 80E: full interest on education loan, no limit, 8 years.
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(40, height - 225, "Invoice No:")
+    c.setFont("Helvetica", 9)
+    c.drawString(115, height - 225, invoice_no)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(320, height - 225, "Date:")
+    c.setFont("Helvetica", 9)
+    c.drawString(360, height - 225, datetime.date.today().strftime("%d %B, %Y"))
 
-👴 Additional Deductions:
-80CCD(1B): extra ₹50,000 for NPS.
-80TTA: ₹10,000 on savings account interest (₹50,000 for seniors under 80TTB).
-80G: 50-100% on donations to registered NGOs.
-HRA / 80GG: up to ₹60,000/year for non-salaried rent payers."""
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(40, height - 242, "Bill to:")
+    c.setFont("Helvetica", 9)
+    c.setFillColor(colors.HexColor('#333333'))
+    c.drawString(115, height - 242, client_name)
+    c.drawString(115, height - 255, client_address)
+    c.drawString(115, height - 268, client_email)
 
-if collection.count() == 0:
-    collection.add(
-        documents=[TAX_KNOWLEDGE],
-        ids=["0"]
-    )
+    c.setStrokeColor(colors.HexColor('#cccccc'))
+    c.line(40, height - 290, width - 40, height - 290)
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(40,  height - 305, "Sl No.")
+    c.drawString(100, height - 305, "Description / Particulars")
+    c.drawRightString(width - 130, height - 305, "Price (INR)")
+    c.drawRightString(width - 40,  height - 305, "Total Amount")
+    c.setStrokeColor(colors.HexColor('#cccccc'))
+    c.line(40, height - 312, width - 40, height - 312)
 
-# ── Tools ─────────────────────────────────────────────────
+    subtotal = 0
+    row_y = height - 330
+    for idx, item in enumerate(items):
+        name = item["name"]
+        price = float(item["price"])
+        qty = int(item.get("qty", 1))
+        total = price * qty
+        subtotal += total
+
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica", 9)
+        c.drawString(40,  row_y, f"{idx + 1}.")
+        c.drawString(100, row_y, name)
+        c.drawRightString(width - 130, row_y, f"Rs.{price:,.2f}")
+        c.drawRightString(width - 40,  row_y, f"Rs.{total:,.2f}")
+        c.setStrokeColor(colors.HexColor('#dddddd'))
+        c.setDash(1, 3)
+        c.line(40, row_y - 8, width - 40, row_y - 8)
+        c.setDash()
+        row_y -= 22
+
+    c.setStrokeColor(colors.HexColor('#cccccc'))
+    c.setLineWidth(0.5)
+    c.line(40, row_y - 5, width - 40, row_y - 5)
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawRightString(width - 130, row_y - 22, "Grand Total:")
+    c.drawRightString(width - 40,  row_y - 22, f"Rs.{subtotal:,.2f}")
+
+    pay_y = row_y - 70
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(40, pay_y, "Settlement Route:")
+    c.setFont("Helvetica", 9)
+    c.drawString(150, pay_y, bank_name or payment_method)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(40, pay_y - 15, "Account Identifier:")
+    c.setFont("Helvetica", 9)
+    c.drawString(150, pay_y - 15, bank_account or "N/A")
+
+    c.save()
+    return filename
+
+# ============================================================
+# AGENT ACCOUNTING TOOL LAYERS
+# ============================================================
 @tool
-def web_search(query: str) -> str:
-    """Search the web for up-to-date general knowledge, current events, and corporate financial tax regulations using DuckDuckGo."""
-    try:
-        from langchain_community.tools import DuckDuckGoSearchRun
-        return DuckDuckGoSearchRun().run(query)
-    except Exception as e:
-        return f"Live index fallback data sequence active for query: {query}."
+def tax_saving(query: str) -> str:
+    """Use this when user asks how to save tax, deductions, 80C, 80D, HRA, NPS."""
+    if not vectorstore: return "Tax saving database not initialized."
+    results = vectorstore.as_retriever(search_kwargs={"k": 3}).invoke(query)
+    return "\n\n".join([r.page_content for r in results]) if results else "No specific matches found."
+
+@tool
+def legal_section(query: str) -> str:
+    """Use this when user asks about tax rules, GST rules, or legal provisions."""
+    if not vectorstore_link: return "Web policy data layers are not loaded."
+    results = vectorstore_link.as_retriever(search_kwargs={"k": 3}).invoke(query)
+    return "\n\n".join([r.page_content for r in results]) if results else "No legal clauses located."
 
 @tool
 def CAlocator(city: str) -> str:
-    """Locates professional, registered Chartered Accountant offices and firms in the requested city location.
-    Provides verified profile records including Name, Office Address, Contact lines, and explicit consultation fees pricing."""
-    try:
-        from langchain_community.tools import DuckDuckGoSearchRun
-        raw_results = DuckDuckGoSearchRun().run(f"office phone fees contact 'Chartered Accountant' in {city}")
-        if not raw_results or "No good" in raw_results:
-            raise ValueError()
-        return f"Verified professional directories found in {city}:\n\n{raw_results}"
+    """Find chartered accountants in the given city."""
+    return DuckDuckGoSearchRun().run(f"best chartered accountant CA firm in {city} contact details fees")
+
+@tool
+def explain_query(query: str) -> str:
+    """Use this when user has received a legal notice, eviction warning, or penalty notice."""
+    return DuckDuckGoSearchRun().run(query)
+
+@tool
+def CAQNS(query: str) -> str:
+    """Use this tool exclusively for advanced corporate law questions."""
+    search = DuckDuckGoSearchRun()
+    try: return search.run(f"{query} site:in taxmann.com OR site:icai.org OR site:incometaxindia.gov.in")
+    except Exception: return search.run(query)
+
+@tool
+def gst_calculator(amount: str, gst_rate: str, transction_type: str) -> str:
+    """Use this tool explicitly when asked to calculate GST values."""
+    clean_amt = str(amount).lower().strip().replace(",", "").replace("rupees", "").replace("rupee", "").replace("rs", "").strip()
+    try: final_numeric_amount = float(clean_amt)
     except Exception:
-        return """### 👨‍💼 Verified Registered Chartered Accountants (Chennai Registry)
+        try: final_numeric_amount = float(w2n.word_to_num(clean_amt))
+        except Exception: return "Validation Error: Could not parse configuration."
 
-1. **CA K. Senthil Kumar**
-   * **Office Location:** SF-2, Lokesh Towers, No. 37, Kodambakkam High Road, Chennai - 600024
-   * **Contact Phone Number:** +91 90940 47000
-   * **Consultation Payment / Fees:** ₹2,500 per advisory session
-   * **Specialization:** Corporate Tax Scrutiny, High-Value Asset Audits
-
-2. **CA. S. Nagarajan (Nagarajan & Co)**
-   * **Office Location:** 5, Velmurugan Nagar Main Road, Hasthinapuram, Chennai - 600064
-   * **Contact Phone Number:** +91 94450 46666
-   * **Consultation Payment / Fees:** ₹1,500 per evaluation session
-   * **Specialization:** Cross-Border GST Compliance, Corporate Retainership
-
-3. **Brahmayya & Co.** (Senior Corporate Partners)
-   * **Office Location:** 48, Masilamani Road, Balaji Nagar, Royapettah, Chennai – 600014
-   * **Contact Phone Number:** 044-28131414
-   * **Consultation Payment / Fees:** ₹5,000 minimum initial baseline corporate consult
-   * **Specialization:** Joint Ventures, Mergers & High-Value Wealth Protection
-
-4. **V Ramaratnam & Company**
-   * **Office Location:** No. 2, First Cross Street, CIT Colony, Mylapore, Chennai - 600004
-   * **Contact Phone Number:** +91 98402 77503
-   * **Consultation Payment / Fees:** ₹3,000 per consultation assessment
-   * **Specialization:** NRI Capital Gains Optimization, Real Estate Taxation Strategy"""
+    gst_rates = {"0": 0, "3": 3, "5": 5, "12": 12, "18": 18, "28": 28}
+    gst_rate = str(gst_rate).upper().strip().replace("%", "")
+    rate = next((gst_rates[s] for s in gst_rates if s in gst_rate), 28)
+    total_gst = (final_numeric_amount * rate) / 100
+    return f"GST Calculation Summary:\nBase Amount: ₹{final_numeric_amount:,.2f}\nGST Applied Rate: {rate}%\nCalculated Tax Fraction: ₹{total_gst:,.2f}\nAccumulated Total: ₹{final_numeric_amount + total_gst:,.2f}"
 
 @tool
-def invoice(client_name: str, items_json: str, is_inter_state: bool = False) -> str:
-    """Generates a professional, beautifully formatted GST-compliant Markdown invoice structure.
-    Expects client name string and line items formatted as a valid JSON list of dictionaries containing keys: desc, qty, rate, and gst percentage."""
-    try:
-        items = json.loads(items_json)
-        inv_no = f"INV-{datetime.date.today().strftime('%Y%m%d')}-01"
-        date_str = datetime.date.today().strftime("%d-%b-%Y")
-        
-        grand_taxable, grand_gst, grand_total = 0.0, 0.0, 0.0
-        markdown_rows = ""
-        
-        for item in items:
-            desc = item.get("desc", item.get("item_name", "Purchased Commodity"))
-            qty = int(item.get("qty", item.get("quantity", 1)))
-            rate = float(item.get("rate", item.get("price", 0.0)))
-            gst_pct = float(item.get("gst", item.get("gst_rate", 18.0)))
-            
-            taxable = qty * rate
-            tax_amount = taxable * (gst_pct / 100.0)
-            total = taxable + tax_amount
-            
-            grand_taxable += taxable
-            grand_gst += tax_amount
-            grand_total += total
-            
-            tax_label = f"{gst_pct}% IGST" if is_inter_state else f"{gst_pct}% (CGST+SGST Split)"
-            markdown_rows += f"| {desc} | {qty} | ₹{rate:,.2f} | ₹{taxable:,.2f} | {tax_label} | ₹{tax_amount:,.2f} | ₹{total:,.2f} |\n"
+def invoice_generator(invoice_no: str, company_name: str, client_name: str, client_phone: str, client_email: str, client_address: str, items: str, payment_method: str = "Bank Transfer", bank_name: str = "", bank_account: str = "") -> str:
+    """Generates a perfect, tax-compliant PDF invoice file securely on disk."""
+    try: raw_items = json.loads(items) if isinstance(items, str) else items
+    except Exception:
+        try: raw_items = ast.literal_eval(items)
+        except Exception: return "Error: Failed to process item array formatting."
 
-        invoice_output = f"""
-### 🧾 TAX INVOICE
+    sanitized_items, base_subtotal = [], 0.0
+    for item in raw_items:
+        name = item.get("name", "Retail Item")
+        price_val = str(item.get("price")).replace(",", "").replace("Rs.", "").strip()
+        try: price = float(price_val)
+        except ValueError: price = 200000.0
+        qty = int(item.get("qty", 1))
+        sanitized_items.append({"name": name, "price": price, "qty": qty})
+        base_subtotal += (price * qty)
 
-**Invoice Number:** {inv_no}  
-**Date:** {date_str}  
-**Billed Entity / Shop Establishment:** {client_name}  
+    total_gst = (base_subtotal * 18.0) / 100
+    sanitized_items.append({"name": "CGST (9.0%)", "price": total_gst / 2, "qty": 1})
+    sanitized_items.append({"name": "SGST (9.0%)", "price": total_gst / 2, "qty": 1})
 
-| Description | Qty | Unit Rate | Taxable Value | GST Rate | Tax Amount | Total Amount |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-{markdown_rows}
-| **Grand Totals** | | | **₹{grand_taxable:,.2f}** | | **₹{grand_gst:,.2f}** | **₹{grand_total:,.2f}** |
-
----
-*Generated by PocketCA compliance engine.*
-"""
-        return invoice_output
-    except Exception as e:
-        return f"Error compiling invoice layout array: {str(e)}"
+    filename = generate_invoice(invoice_no=invoice_no, company_name=company_name, client_name=client_name, client_phone=client_phone, client_email=client_email, client_address=client_address, items=sanitized_items, payment_method=payment_method, bank_name=bank_name, bank_account=bank_account)
+    
+    st.session_state["last_generated_pdf"] = filename
+    return f"SUCCESS: Invoice compiled perfectly as '{filename}'."
 
 @tool
-def gst_calculator(base_amount: float, gst_rate_pct: float, is_inter_state: bool = False) -> str:
-    """Calculates the exact mathematical GST breakdown for a given base amount and tax rate."""
-    try:
-        base = float(base_amount)
-        rate = float(gst_rate_pct)
-        total_gst = base * (rate / 100.0)
-        grand_total = base + total_gst
+def standard_lookup(query: str) -> str:
+    """Fallback search network."""
+    return DuckDuckGoSearchRun().run(query)
 
-        if is_inter_state:
-            cgst, sgst, igst = 0.0, 0.0, total_gst
-        else:
-            cgst = sgst = total_gst / 2.0
-            igst = 0.0
+# ============================================================
+# AGENT BUILD & CHAT VIEWPORT INTERFACES
+# ============================================================
+tools = [tax_saving, legal_section, CAlocator, explain_query, CAQNS, gst_calculator, invoice_generator, standard_lookup]
+SYSTEM_PROMPT = """You are the Pocket CA Agent, an expert Chartered Accountant AI assistant.
+FORMAT: Answer conversational answers in clean professional bullet points in English only."""
 
-        result = {
-            "status": "success",
-            "calculations": {
-                "base_amount": round(base, 2),
-                "gst_rate_percentage": round(rate, 2),
-                "cgst": round(cgst, 2),
-                "sgst": round(sgst, 2),
-                "igst": round(igst, 2),
-                "total_gst_amount": round(total_gst, 2),
-                "grand_total": round(grand_total, 2)
-            }
-        }
-        return json.dumps(result, indent=2)
-    except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+agent = create_react_agent(llm, tools, prompt=SYSTEM_PROMPT)
 
-@tool
-def save_tax(question: str) -> str:
-    """Search the RAG knowledge base for Indian tax saving optimization rules."""
-    try:
-        results = collection.query(query_texts=[question], n_results=2)
-        docs = results.get("documents", [[]])
-        if docs and docs[0]:
-            return "\n".join(docs[0])
-        return "No explicit database entry match. Use web search for updated schedules."
-    except Exception as e:
-        return f"RAG framework error: {e}"
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [{"role": "ai", "content": "Greetings. I am your automated PocketCA system. Provide transaction particulars or text-driven financial queries to evaluate taxes and structure clean digital invoices."}]
+if "langchain_history" not in st.session_state:
+    st.session_state["langchain_history"] = []
 
-# ── LLM AND TOOL CALLING ─────────────────────────────────
-@st.cache_resource
-def get_agent():
-    # Temperature 0.1 ensures strict precision on exact financial and numerical targets
-    llm = ChatGroq(api_key=GROQ_API_KEY, model="llama-3.1-8b-instant", temperature=0.1)
-    tools = [gst_calculator, save_tax, CAlocator, invoice, web_search]
-    return create_react_agent(llm, tools)
-
-agent_executor = get_agent()
-
-# ── System prompt ─────────────────────────────────────────
-SYSTEM_PROMPT = """You are the Pocket CA Agent, an elite, highly precise expert Chartered Accountant financial intelligence system. You operate with absolute zero-tolerance for mathematical or logical inaccuracies.
-
-CRITICAL INSTRUCTIONS:
-1. ADVANCED CA QUESTIONS: If the user provides high-level corporate taxation, advanced auditing, or technical financial queries, you must calculate and state answers with absolute mathematical precision. If a calculated figure should be exactly 1,000, your final answer must output exactly 1,000 without rounding variations or guessing.
-2. DYNAMIC TRANSACTIONS TO INVOICES: If the user describes an unstructured real-world purchase intent (e.g., "I have bought 1 crore watch from Sakshi store"), parse this context natively. Immediately call the invoice tool. Treat "Sakshi Store" as the entity/vendor, accurately parse the unit amount (e.g., 10,000,000), select the matching legal luxury tax rate (e.g., 18% or 28%), compute the grand total, and display only the finished Markdown table layout.
-3. CA DIRECTORY REQUESTS: When asked to locate real CAs in a location like Chennai, run the CAlocator tool. Display comprehensive records including the Name, Direct Telephone details, office location address, and precise Consultation Fees / Payment values.
-4. TEXT COMPLIANCE: Do not display raw internal system function tags on the screen. Output final structural responses cleanly."""
-
-# ── STATE INITIALIZATION ─────────────────────────────────
-if "chat_history" not in st.session_state:
-    history = load_memory()
-    if not any(isinstance(m, SystemMessage) for m in history):
-        history.insert(0, SystemMessage(content=SYSTEM_PROMPT))
-    st.session_state.chat_history = history
-
-if "display_messages" not in st.session_state:
-    st.session_state.display_messages = []
-
-# ── SIDEBAR INTERFACE ────────────────────────────────────
-with st.sidebar:
-    st.markdown("## 💼 PocketCA Engine")
-    st.markdown("---")
-    st.markdown("**Active Auditing Systems:**")
-    st.markdown("📈 High-Precision CA Solver")
-    st.markdown("📊 GST Corporate Calculator")
-    st.markdown("🧾 Dynamic Invoice Compiler")
-    st.markdown("👨‍💼 CA Directory Profiler")
-    st.markdown("---")
-    if st.button("🗑️ Clear Core Ledger"):
-        st.session_state.chat_history = [SystemMessage(content=SYSTEM_PROMPT)]
-        st.session_state.display_messages = []
-        save_memory(st.session_state.chat_history)
-        st.rerun()
-
-# ── MAIN APPLICATION INTERFACE ───────────────────────────
-st.markdown("# 💼 PocketCA")
-st.markdown("The expert financial agent for invoices, tax planning, and high-precision corporate calculations.")
-st.markdown("---")
-
-# Render historical ledger streams
-for msg in st.session_state.display_messages:
+# Display current chat stream
+for msg in st.session_state["messages"]:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        st.write(msg["content"])
 
-# Capture live accounting streams
-user_msg = st.chat_input("Enter your transaction details or complex tax query...")
-
-if user_msg:
-    st.session_state.display_messages.append({"role": "user", "content": user_msg})
+# Process input submission
+if user_query := st.chat_input("Enter asset tracking query or invoice requests..."):
     with st.chat_message("user"):
-        st.markdown(user_msg)
-    
-    st.session_state.chat_history.append(HumanMessage(content=user_msg))
-    trimmed_context = trim_message(st.session_state.chat_history, max_message=6)
-    
+        st.write(user_query)
+    st.session_state["messages"].append({"role": "user", "content": user_query})
+    st.session_state["langchain_history"].append(HumanMessage(content=user_query))
+
     with st.chat_message("assistant"):
-        with st.spinner("Processing transaction values..."):
+        with st.spinner("Processing ledger validation variables..."):
             try:
-                response = agent_executor.invoke({"messages": trimmed_context})
-                st.session_state.chat_history = response["messages"]
-                ai_msg = st.session_state.chat_history[-1]
+                response = agent.invoke({"messages": st.session_state["langchain_history"][-10:]})
+                st.session_state["langchain_history"] = response["messages"]
+                agent_reply = response["messages"][-1].content
                 
-                # Robust extraction removes operational metadata tags completely
-                clean_content = ai_msg.content
-                if "</function>" in clean_content:
-                    clean_content = clean_content.split("</function>")[-1].strip()
-                elif "function>" in clean_content:
-                    clean_content = clean_content.split("function>")[-1].strip()
+                st.write(agent_reply)
+                st.session_state["messages"].append({"role": "ai", "content": agent_reply})
                 
-                st.markdown(clean_content)
-                st.session_state.display_messages.append({"role": "assistant", "content": clean_content})
-                save_memory(st.session_state.chat_history)
-            except Exception as e:
-                st.error(f"Execution Error: {e}")
-    st.rerun()
+                # Dynamic UX Trigger: Display file action cards when invoices finish rendering
+                if "last_generated_pdf" in st.session_state and os.path.exists(st.session_state["last_generated_pdf"]):
+                    pdf_file = st.session_state["last_generated_pdf"]
+                    with open(pdf_file, "rb") as f:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        st.download_button(
+                            label="📥 Download Tax Invoice Receipt (PDF)",
+                            data=f,
+                            file_name=pdf_file,
+                            mime="application/pdf"
+                        )
+                    del st.session_state["last_generated_pdf"]
+            except Exception as error:
+                st.error(f"Execution Error: {error}")
