@@ -146,10 +146,12 @@ st.markdown("""
     
     /* Clean Sidebar Flush Layout */
     .flush-btn button {
-        background-color: rgba(244, 63, 94, 0.1) !important;
+        background-color: rgba(244, 63, 94, 0.08) !important;
         color: #f43f5e !important;
-        border: 1px solid rgba(244, 63, 94, 0.2) !important;
+        border: 1px solid rgba(244, 63, 94, 0.15) !important;
         border-radius: 10px;
+        font-weight: 600 !important;
+        letter-spacing: 0.02em;
     }
     .flush-btn button:hover {
         background-color: #f43f5e !important;
@@ -338,7 +340,7 @@ def invoice_generator(invoice_no: str, company_name: str, client_name: str, clie
     sanitized_items.append({"name": "CGST (9.0%)", "price": total_gst / 2, "qty": 1})
     sanitized_items.append({"name": "SGST (9.0%)", "price": total_gst / 2, "qty": 1})
 
-    filename = generate_invoice(invoice_no=invoice_no, company_name=company_name, client_name=client_name, client_phone=client_email, client_address=client_address, items=sanitized_items, payment_method=payment_method, bank_name=bank_name, bank_account=bank_account)
+    filename = generate_invoice(invoice_no=invoice_no, company_name=company_name, client_name=client_name, client_phone=client_phone, client_email=client_email, client_address=client_address, items=sanitized_items, payment_method=payment_method, bank_name=bank_name, bank_account=bank_account)
     
     st.session_state["last_generated_pdf"] = filename
     return f"SUCCESS: Invoice compiled perfectly as '{filename}'."
@@ -355,7 +357,7 @@ agent = create_react_agent(llm, tools, prompt="You are Pocket CA Premium Elite. 
 # 🗺️ PREMIUM NAVIGATION CONTROL CORE
 # ============================================================
 with st.sidebar:
-    st.markdown("<div style='padding:15px 0px;'><h2 style='color:#ffffff; font-weight:900; font-size:1.6rem; letter-spacing:-0.04em;'>👑 POCKETCA<span style='color:#38bdf8;'>.PRO</span></h2></div>", unsafe_allow_html=True)
+    st.markdown("<div style='padding:15px 0px; text-align:center;'><h2 style='color:#ffffff; font-weight:900; font-size:1.6rem; letter-spacing:-0.04em;'>👑 POCKETCA<span style='color:#38bdf8;'>.PRO</span></h2></div>", unsafe_allow_html=True)
     
     selected_page = option_menu(
         menu_title=None,
@@ -364,10 +366,10 @@ with st.sidebar:
         menu_icon="cast",
         default_index=0,
         styles={
-            "container": {"background-color": "transparent", "padding": "0px"},
-            "icon": {"color": "#38bdf8", "font-size": "13px"}, 
-            "nav-link": {"font-size": "13px", "color": "#94a3b8", "text-align": "left", "padding": "12px 15px", "margin":"5px 0px", "border-radius":"12px", "font-weight": "500"},
-            "nav-link-selected": {"background": "linear-gradient(90deg, #0284c7 0%, #2563eb 100%)", "color": "white", "font-weight": "700"},
+            "container": {"background-color": "rgba(255,255,255,0.01)", "padding": "5px", "border": "1px solid rgba(255,255,255,0.05)", "border-radius":"14px"},
+            "icon": {"color": "#38bdf8", "font-size": "14px"}, 
+            "nav-link": {"font-size": "13px", "color": "#94a3b8", "text-align": "left", "padding": "12px 15px", "margin":"4px 0px", "border-radius":"10px", "font-weight": "500", "transition": "all 0.2s"},
+            "nav-link-selected": {"background": "linear-gradient(90deg, #0284c7 0%, #2563eb 100%)", "color": "white", "font-weight": "700", "box-shadow": "0 4px 12px rgba(2, 132, 199, 0.3)"},
         }
     )
 
@@ -386,7 +388,7 @@ with st.sidebar:
                     use_container_width=True
                 )
     
-    # CORE CAPABILITIES SECTION - PROFESSIONAL AGENT HIGHLIGHTS
+    # AGENT CORE CAPABILITIES
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<p style='font-size:0.7rem; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; padding-left:5px;'>AGENT CORE CAPABILITIES</p>", unsafe_allow_html=True)
     
@@ -409,23 +411,31 @@ with st.sidebar:
         </div>
     """, unsafe_allow_html=True)
     
-    st.markdown("<p style='font-size:0.7rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; padding-left:5px;'>BACKEND TOOLCHAIN</p>", unsafe_allow_html=True)
+    # SYSTEM STATE TELEMETRY - BELOW CAPABILITIES REMODEL
+    st.markdown("<p style='font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; padding-left:5px;'>SYSTEM ARCHITECTURE STATUS</p>", unsafe_allow_html=True)
     
+    vector_status = '<span style="background-color:rgba(52,211,153,0.1); color:#34d399; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; border:1px solid rgba(52,211,153,0.2);">ONLINE</span>' if vectorstore else '<span style="background-color:rgba(244,63,94,0.1); color:#f43f5e; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; border:1px solid rgba(244,63,94,0.2);">OFFLINE</span>'
+    scraper_status = '<span style="background-color:rgba(52,211,153,0.1); color:#34d399; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; border:1px solid rgba(52,211,153,0.2);">SYNCED</span>' if vectorstore_link else '<span style="background-color:rgba(244,63,94,0.1); color:#f43f5e; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; border:1px solid rgba(244,63,94,0.2);">STANDBY</span>'
+
     st.markdown(f"""
-        <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:14px; margin-bottom:12px;">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Orchestrator Node</div>
-            <div style="color:#ffffff; font-size:13px; font-weight:700; margin-top:2px;">LangGraph Framework</div>
-        </div>
-        <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:14px; margin-bottom:12px;">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Knowledge Database</div>
-            <div style="color:{'#34d399' if vectorstore else '#f43f5e'}; font-size:13px; font-weight:700; margin-top:2px;">
-                {'ChromaDB Online' if vectorstore else 'ChromaDB Local Offline'}
+        <div style="background:rgba(15,23,42,0.4); border:1px solid rgba(255,255,255,0.05); padding:14px; border-radius:14px; margin-bottom:20px;">
+            <div style="display:flex; justify-content:between; align-items:center; margin-bottom:10px; width:100%;">
+                <span style="color:#94a3b8; font-size:11px; font-weight:600; flex-grow:1;">Orchestration Engine</span>
+                <span style="background-color:rgba(56,189,248,0.1); color:#38bdf8; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; border:1px solid rgba(56,189,248,0.2);">LANGGRAPH</span>
+            </div>
+            <div style="display:flex; justify-content:between; align-items:center; margin-bottom:10px; width:100%;">
+                <span style="color:#94a3b8; font-size:11px; font-weight:600; flex-grow:1;">Chroma VectorDB Node</span>
+                {vector_status}
+            </div>
+            <div style="display:flex; justify-content:between; align-items:center; width:100%;">
+                <span style="color:#94a3b8; font-size:11px; font-weight:600; flex-grow:1;">Live Policy Web-RAG</span>
+                {scraper_status}
             </div>
         </div>
     """, unsafe_allow_html=True)
     
     st.markdown("<div class='flush-btn'>", unsafe_allow_html=True)
-    if st.button("Reset Application Memory", use_container_width=True):
+    if st.button("Purge Runtime Core Memory", use_container_width=True):
         st.session_state["messages"] = []
         st.session_state["langchain_history"] = []
         st.session_state["last_generated_pdf"] = None
