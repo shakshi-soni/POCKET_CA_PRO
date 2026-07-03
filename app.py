@@ -46,7 +46,7 @@ st.markdown("""
         background: rgba(0,0,0,0) !important;
     }
 
-    /* Scrollbars */
+    /* Scrollbars - FIXED TYPO HERE */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: #03070c; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 99px; }
@@ -359,8 +359,8 @@ with st.sidebar:
     
     selected_page = option_menu(
         menu_title=None,
-        options=["Operations Hub", "Telemetry Analytics", "Global Ledger Configurations"],
-        icons=["sliders2", "cpu-fill", "database-fill-gear"],
+        options=["AI Invoice Generator", "Local Vector RAG Search", "System Settings Console"],
+        icons=["receipt-cutoff", "database-check", "gear-wide-connected"],
         menu_icon="cast",
         default_index=0,
         styles={
@@ -372,29 +372,29 @@ with st.sidebar:
     )
     
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("<p style='font-size:0.7rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; padding-left:5px;'>SYSTEM ARCHITECTURE</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size:0.7rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; padding-left:5px;'>BACKEND TOOLCHAIN</p>", unsafe_allow_html=True)
     
     st.markdown(f"""
         <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:14px; margin-bottom:12px;">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Computational Engine</div>
-            <div style="color:#ffffff; font-size:14px; font-weight:700; margin-top:2px;">Groq Llama-3.1</div>
+            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Agent Orchestrator</div>
+            <div style="color:#ffffff; font-size:14px; font-weight:700; margin-top:2px;">LangGraph + Llama 3.1</div>
         </div>
         <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:14px; margin-bottom:12px;">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Knowledge Base Base</div>
+            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Vector Database</div>
             <div style="color:{'#34d399' if vectorstore else '#f43f5e'}; font-size:14px; font-weight:700; margin-top:2px;">
-                {'ChromaDB Store Active' if vectorstore else 'ChromaDB Local Offline'}
+                {'ChromaDB Core Online' if vectorstore else 'ChromaDB Local Offline'}
             </div>
         </div>
         <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:14px; margin-bottom:20px;">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Live Tax Ingestion</div>
+            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Compliance Web Scraper</div>
             <div style="color:{'#34d399' if vectorstore_link else '#f43f5e'}; font-size:14px; font-weight:700; margin-top:2px;">
-                {'ClearTax Live Feed' if vectorstore_link else 'Web Sync Standby'}
+                {'ClearTax Live Sync' if vectorstore_link else 'Web Sync Standby'}
             </div>
         </div>
     """, unsafe_allow_html=True)
     
     st.markdown("<div class='flush-btn'>", unsafe_allow_html=True)
-    if st.button("Purge Runtime Context", use_container_width=True):
+    if st.button("Reset Application Memory", use_container_width=True):
         st.session_state["messages"] = []
         st.session_state["langchain_history"] = []
         st.rerun()
@@ -403,7 +403,7 @@ with st.sidebar:
 # ============================================================
 # ROUTER DISPLAY PAGE
 # ============================================================
-if selected_page == "Operations Hub":
+if selected_page == "AI Invoice Generator":
     
     st.markdown("<h1 style='font-size:2.75rem; font-weight:900; letter-spacing:-0.04em; margin-bottom:5px; background:linear-gradient(90deg, #ffffff 0%, #38bdf8 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent;'>Cognitive Operations Terminal</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#64748b; font-size:1rem; margin-bottom:35px;'><strong>What this does:</strong> Autonomous Multi-Agent B2B Invoicing Framework & Localized Tax RAG. Extracts raw user requests to calculate exact regional Indian GST rules and programmatically renders vector-drawn PDF assets.</p>", unsafe_allow_html=True)
@@ -471,11 +471,11 @@ if selected_page == "Operations Hub":
                 except Exception as err:
                     st.error(f"Runtime Warning: {err}")
 
-elif selected_page == "Telemetry Analytics":
+elif selected_page == "Local Vector RAG Search":
     st.markdown("## 📊 Telemetry Clusters")
     st.info("Performance loops, inference cost metrics, and embedding cluster indexes will monitor here.")
 
-elif selected_page == "Global Ledger Configurations":
+elif selected_page == "System Settings Console":
     st.markdown("## ⚙️ Global Ledger Settings")
     st.text_input("Entity Identification Token (PAN)", value="STXXXXXXXXX")
     st.text_input("Default Institutional Code (GSTIN)", value="27AAAAA0000A1Z5")
