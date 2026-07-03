@@ -338,7 +338,7 @@ def invoice_generator(invoice_no: str, company_name: str, client_name: str, clie
     sanitized_items.append({"name": "CGST (9.0%)", "price": total_gst / 2, "qty": 1})
     sanitized_items.append({"name": "SGST (9.0%)", "price": total_gst / 2, "qty": 1})
 
-    filename = generate_invoice(invoice_no=invoice_no, company_name=company_name, client_name=client_name, client_phone=client_phone, client_email=client_email, client_address=client_address, items=sanitized_items, payment_method=payment_method, bank_name=bank_name, bank_account=bank_account)
+    filename = generate_invoice(invoice_no=invoice_no, company_name=company_name, client_name=client_name, client_phone=client_email, client_address=client_address, items=sanitized_items, payment_method=payment_method, bank_name=bank_name, bank_account=bank_account)
     
     st.session_state["last_generated_pdf"] = filename
     return f"SUCCESS: Invoice compiled perfectly as '{filename}'."
@@ -371,7 +371,7 @@ with st.sidebar:
         }
     )
 
-    # DYNAMIC FILE PIPELINE SYSTEM (PREVENTS INLINE AGENT HALTING ERRORS)
+    # DOWNLOAD PIPELINE CONSOLE CARD
     if "last_generated_pdf" in st.session_state and st.session_state["last_generated_pdf"]:
         pdf_file = st.session_state["last_generated_pdf"]
         if os.path.exists(pdf_file):
@@ -386,24 +386,40 @@ with st.sidebar:
                     use_container_width=True
                 )
     
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    # CORE CAPABILITIES SECTION - PROFESSIONAL AGENT HIGHLIGHTS
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size:0.7rem; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; padding-left:5px;'>AGENT CORE CAPABILITIES</p>", unsafe_allow_html=True)
+    
+    st.markdown("""
+        <div style="background:rgba(56,189,248,0.03); border:1px solid rgba(56,189,248,0.15); padding:12px; border-radius:12px; margin-bottom:10px;">
+            <div style="color:#ffffff; font-size:12px; font-weight:700;">📝 Entity Parsing</div>
+            <div style="color:#94a3b8; font-size:11px; margin-top:2px;">Maps unstructured conversations into standardized ledger parameters.</div>
+        </div>
+        <div style="background:rgba(192,132,252,0.03); border:1px solid rgba(192,132,252,0.15); padding:12px; border-radius:12px; margin-bottom:10px;">
+            <div style="color:#ffffff; font-size:12px; font-weight:700;">🔢 Deterministic Math</div>
+            <div style="color:#94a3b8; font-size:11px; margin-top:2px;">Runs reliable, hallucination-free GST calculations programmatically.</div>
+        </div>
+        <div style="background:rgba(253,224,71,0.03); border:1px solid rgba(253,224,71,0.15); padding:12px; border-radius:12px; margin-bottom:10px;">
+            <div style="color:#ffffff; font-size:12px; font-weight:700;">📂 Vector RAG Retrieval</div>
+            <div style="color:#94a3b8; font-size:11px; margin-top:2px;">Queries local statutory policy indexes inside ChromaDB.</div>
+        </div>
+        <div style="background:rgba(52,211,153,0.03); border:1px solid rgba(52,211,153,0.15); padding:12px; border-radius:12px; margin-bottom:20px;">
+            <div style="color:#ffffff; font-size:12px; font-weight:700;">🖨️ Canvas Rendering</div>
+            <div style="color:#94a3b8; font-size:11px; margin-top:2px;">Compiles custom corporate vector graphics to system storage.</div>
+        </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("<p style='font-size:0.7rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; padding-left:5px;'>BACKEND TOOLCHAIN</p>", unsafe_allow_html=True)
     
     st.markdown(f"""
         <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:14px; margin-bottom:12px;">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Agent Orchestrator</div>
-            <div style="color:#ffffff; font-size:14px; font-weight:700; margin-top:2px;">LangGraph + Llama 3.1</div>
+            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Orchestrator Node</div>
+            <div style="color:#ffffff; font-size:13px; font-weight:700; margin-top:2px;">LangGraph Framework</div>
         </div>
         <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:14px; margin-bottom:12px;">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Vector Database</div>
-            <div style="color:{'#34d399' if vectorstore else '#f43f5e'}; font-size:14px; font-weight:700; margin-top:2px;">
-                {'ChromaDB Core Online' if vectorstore else 'ChromaDB Local Offline'}
-            </div>
-        </div>
-        <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:14px; margin-bottom:20px;">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Compliance Web Scraper</div>
-            <div style="color:{'#34d399' if vectorstore_link else '#f43f5e'}; font-size:14px; font-weight:700; margin-top:2px;">
-                {'ClearTax Live Sync' if vectorstore_link else 'Web Sync Standby'}
+            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Knowledge Database</div>
+            <div style="color:{'#34d399' if vectorstore else '#f43f5e'}; font-size:13px; font-weight:700; margin-top:2px;">
+                {'ChromaDB Online' if vectorstore else 'ChromaDB Local Offline'}
             </div>
         </div>
     """, unsafe_allow_html=True)
