@@ -46,7 +46,7 @@ st.markdown("""
         background: rgba(0,0,0,0) !important;
     }
 
-    /* Scrollbars - FIXED TYPO HERE */
+    /* Scrollbars */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: #03070c; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 99px; }
@@ -370,6 +370,21 @@ with st.sidebar:
             "nav-link-selected": {"background": "linear-gradient(90deg, #0284c7 0%, #2563eb 100%)", "color": "white", "font-weight": "700"},
         }
     )
+
+    # DYNAMIC FILE PIPELINE SYSTEM (PREVENTS INLINE AGENT HALTING ERRORS)
+    if "last_generated_pdf" in st.session_state and st.session_state["last_generated_pdf"]:
+        pdf_file = st.session_state["last_generated_pdf"]
+        if os.path.exists(pdf_file):
+            with open(pdf_file, "rb") as f:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("<p style='font-size:0.7rem; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; padding-left:5px;'>READY EXPORT QUEUE</p>", unsafe_allow_html=True)
+                st.download_button(
+                    label="📥 DOWNLOAD GENERATED PDF",
+                    data=f,
+                    file_name=pdf_file,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
     
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown("<p style='font-size:0.7rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; padding-left:5px;'>BACKEND TOOLCHAIN</p>", unsafe_allow_html=True)
@@ -397,6 +412,7 @@ with st.sidebar:
     if st.button("Reset Application Memory", use_container_width=True):
         st.session_state["messages"] = []
         st.session_state["langchain_history"] = []
+        st.session_state["last_generated_pdf"] = None
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -453,21 +469,9 @@ if selected_page == "AI Invoice Generator":
                     st.write(agent_reply)
                     st.session_state["messages"].append({"role": "ai", "content": agent_reply})
                     
-                    # FLOATING BUTTON SHEET GENERATION
-                    if "last_generated_pdf" in st.session_state:
-                        pdf_file = st.session_state["last_generated_pdf"]
-                        if os.path.exists(pdf_file):
-                            with open(pdf_file, "rb") as f:
-                                st.markdown("<div style='margin-top:20px; padding:4px; border-radius:12px;'>", unsafe_allow_html=True)
-                                st.download_button(
-                                    label="📥 EXPORT AUDIT-COMPLIANT FINTECH VECTOR ASSET (PDF)",
-                                    data=f,
-                                    file_name=pdf_file,
-                                    mime="application/pdf",
-                                    use_container_width=True
-                                )
-                                st.markdown("</div>", unsafe_allow_html=True)
-                            del st.session_state["last_generated_pdf"]
+                    # Refresh page to instantly show sidebar download button state update
+                    st.rerun()
+                    
                 except Exception as err:
                     st.error(f"Runtime Warning: {err}")
 
