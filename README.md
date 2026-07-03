@@ -188,6 +188,14 @@ Being upfront about scope, since this is a learning project rather than a produc
 
 ---
 
+🙋‍♂️ About the Developer
+Built with ❤️ by [SHAKSHI SONI]
+
+I'm a developer passionate about building practical AI applications that solve real-world problems. This project explores agentic AI design — where an LLM doesn't just chat, but acts, by calling tools, remembering context, and making decisions autonomously.
+📫 Connect with me: LinkedIn
+
+⭐ If you found this project interesting, please give it a star! It helps a lot.
+
 ## 👤 Author
 
 Built by [shakshi-soni](https://github.com/shakshi-soni) as part of ongoing work in agentic AI systems.
