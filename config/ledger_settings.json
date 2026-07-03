@@ -1,0 +1,29 @@
+{
+  "organization_profile": {
+    "legal_name": "PocketCA Pro Systems Ltd.",
+    "trade_name": "PocketCA Solutions",
+    "primary_pan": "STXXXXXXXXX",
+    "corporate_identity_number_cin": "U72200MH2026PTC999999"
+  },
+  "taxation_profiles": [
+    {
+      "state_jurisdiction": "Maharashtra",
+      "state_code": "27",
+      "gstin": "27AAAAA0000A1Z5",
+      "registered_office_address": "404 Cognitive Tower, Bandra Kurla Complex, Mumbai, MH, 400051"
+    }
+  ],
+  "accounting_baselines": {
+    "default_currency": "INR",
+    "currency_symbol": "₹",
+    "fiscal_year_start": "04-01",
+    "fiscal_year_end": "03-31",
+    "standard_gst_rate_percent": 18,
+    "rounding_precision_decimals": 2
+  },
+  "payment_gateways": {
+    "preferred_channel": "Bank Transfer",
+    "settlement_bank_name": "Apex Institutional Bank",
+    "routing_account_number": "99991020003456"
+  }
+}
