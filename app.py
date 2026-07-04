@@ -246,7 +246,6 @@ def generate_invoice(invoice_no, company_name, client_name, client_phone, client
     c.drawRightString(width - 160, table_top + 7, "Rate")
     c.drawRightString(width - 65, table_top + 7, "Amount")
 
-    subtotal = 0
     row_y = table_top - 22
     
     for idx, item in enumerate(items):
@@ -254,8 +253,6 @@ def generate_invoice(invoice_no, company_name, client_name, client_phone, client
         price = float(item["price"])
         qty = int(item.get("qty", 1))
         total = price * qty
-        if "GST" not in name:
-            subtotal += total
 
         c.setFillColor(colors.HexColor('#334155'))
         c.setFont("Helvetica", 9.5)
@@ -274,7 +271,7 @@ def generate_invoice(invoice_no, company_name, client_name, client_phone, client
     c.setFillColor(colors.HexColor('#0f172a'))
     c.drawRightString(width - 160, row_y, "Total Aggregate:")
     
-    final_aggregate = sum(f["price"] * f["qty"] for f in items)
+    final_aggregate = sum(float(f["price"]) * int(f.get("qty", 1)) for f in items)
     c.drawRightString(width - 65, row_y, f"Rs.{final_aggregate:,.2f}")
 
     pay_y = row_y - 70
@@ -294,36 +291,75 @@ def generate_invoice(invoice_no, company_name, client_name, client_phone, client
     return filename
 
 # ============================================================
-# AGENT TOOL SETS
+# AGENT TOOL SETS WITH ENHANCED VALIDATION SCHEMAS
 # ============================================================
 @tool
 def tax_saving(query: str) -> str:
-    """Use this when user asks how to save tax, deductions, 80C, 80D, HRA, NPS."""
+    """Use this tool when user asks questions about saving taxes, tax deductions, 80C, 80D, HRA, or NPS rules.
+    
+    Args:
+        query (str): The search query or question related to saving taxes.
+    """
     if not vectorstore: return "Tax saving database not initialized."
     results = vectorstore.as_retriever(search_kwargs={"k": 3}).invoke(query)
     return "\n\n".join([r.page_content for r in results]) if results else "No specific matches found."
 
 @tool
 def legal_section(query: str) -> str:
-    """Use this when user asks about tax rules, GST rules, or legal provisions."""
+    """Use this tool when user asks about general tax laws, legal clauses, statutory GST rates, or compliance laws.
+    
+    Args:
+        query (str): Tax rules or legal provisions to locate.
+    """
     if not vectorstore_link: return "Web policy data layers are not loaded."
     results = vectorstore_link.as_retriever(search_kwargs={"k": 3}).invoke(query)
     return "\n\n".join([r.page_content for r in results]) if results else "No legal clauses located."
 
 @tool
-def gst_calculator(amount: str, gst_rate: str, transction_type: str) -> str:
-    """Use this tool explicitly when asked to calculate GST values."""
+def gst_calculator(amount: str, gst_rate: str = "18%", transction_type: str = "Intrastate") -> str:
+    """Explicitly use this tool when asked to calculate GST values, taxes on an amount, or pricing fractions.
+    
+    Args:
+        amount (str): The financial base money amount to analyze (e.g., '230000', '2.3 lakhs').
+        gst_rate (str): The percentage band. Defaults to '18%'.
+        transction_type (str): Type of transaction. Defaults to 'Intrastate'.
+    """
     clean_amt = str(amount).lower().strip().replace(",", "").replace("rs", "").strip()
-    try: final_numeric_amount = float(clean_amt)
-    except Exception: return "Validation Error: Could not parse configuration."
+    
+    # Simple semantic conversion helper for Indian system inside tool bounds
+    if "lakh" in clean_amt:
+        try:
+            num_part = float(clean_amt.split("lakh")[0].strip())
+            final_numeric_amount = num_part * 100000
+        except:
+            return "Validation Error: Base calculation mismatch."
+    elif "k" in clean_amt:
+        try:
+            num_part = float(clean_amt.split("k")[0].strip())
+            final_numeric_amount = num_part * 1000
+        except:
+            return "Validation Error: Base calculation mismatch."
+    else:
+        try: final_numeric_amount = float(clean_amt)
+        except Exception: return "Validation Error: Could not parse configuration."
 
     rate = next((int(s) for s in ["0", "3", "5", "12", "18", "28"] if s in str(gst_rate)), 18)
     total_gst = (final_numeric_amount * rate) / 100
-    return f"GST Summary:\nBase: ₹{final_numeric_amount:,.2f}\nRate: {rate}%\nTax Fraction: ₹{total_gst:,.2f}\nAccumulated Total: ₹{final_numeric_amount + total_gst:,.2f}"
+    return f"GST Computation Summary:\n- Base Amount: ₹{final_numeric_amount:,.2f}\n- Applied Rate: {rate}%\n- Calculated GST Fraction: ₹{total_gst:,.2f}\n- Grand Aggregated Value: ₹{final_numeric_amount + total_gst:,.2f}"
 
 @tool
 def invoice_generator(invoice_no: str, company_name: str, client_name: str, client_phone: str, client_email: str, client_address: str, items: str, payment_method: str = "Bank Transfer", bank_name: str = "", bank_account: str = "") -> str:
-    """Generates a perfect, tax-compliant PDF invoice file securely on disk."""
+    """Generates a tax-compliant business PDF invoice file.
+    
+    Args:
+        invoice_no (str): Reference invoice tracking number.
+        company_name (str): Issuing merchant name.
+        client_name (str): Buying recipient name.
+        client_phone (str): Contact phone string.
+        client_email (str): Target routing email.
+        client_address (str): Delivery physical location.
+        items (str): Structured valid strict JSON array string, e.g., '[{"name": "Item", "price": 100, "qty": 1}]'
+    """
     try: raw_items = json.loads(items) if isinstance(items, str) else items
     except Exception:
         try: raw_items = ast.literal_eval(items)
@@ -348,7 +384,11 @@ def invoice_generator(invoice_no: str, company_name: str, client_name: str, clie
 
 @tool
 def standard_lookup(query: str) -> str:
-    """Fallback fallback search network."""
+    """Fallback query handler to lookup live public tax changes, general concepts, or information queries.
+    
+    Args:
+        query (str): General topic query to pull up.
+    """
     try:
         search = DuckDuckGoSearchResults()
         return search.run(query)
@@ -360,16 +400,15 @@ def standard_lookup(query: str) -> str:
 # ============================================================
 tools = [tax_saving, legal_section, gst_calculator, invoice_generator, standard_lookup]
 
-agent_system_prompt = """You are Pocket CA Premium Elite. You have an advanced cognitive brain for parsing informal Indian business requests.
+agent_system_prompt = """You are Pocket CA Premium Elite. You are an expert Indian finance AI.
+You answer questions ONLY related to taxes, invoicing, legal provisions, and business bookkeeping.
 
 CRITICAL INSTRUCTIONS FOR REASONING:
-1. Convert text numbers to strict digits: "2.45 lakhs" = 245000, "1 lakh" = 100000, "50k" = 50000.
-2. Clean up spellings: If the user says "lenga", map it to "Lehenga Choli" in the item description.
-3. Strict Tool Argument Rules: The `items` argument for `invoice_generator` MUST be a valid JSON array string containing structured dictionaries. 
-   Example format: '[{"name": "Lehenga Choli", "price": 245000, "qty": 1}]'
-4. If fields like invoice_no, client_name, client_phone, client_email, or client_address are missing from the chat conversation, do not fail! Automate them with clean placeholders like "INV-2026-999", "In-Store Guest", "9999999999", "client@internal.me", and "Counter Delivery".
-
-Execute with extreme professionalism, clean tabular outputs, and complete accuracy."""
+1. Always resolve user prompts by directly invoking the correct tool. Do not ask for confirmation.
+2. Numerical mapping: Convert text numbers to strict digits safely ("2.3 lakhs" = 230000, "1 lakh" = 100000, "50k" = 50000).
+3. If the user query is about calculations, pass the parameters directly into the `gst_calculator`.
+4. If fields for compiling invoices are missing, use clean placeholders such as "INV-2026-999" and "In-Store Guest". 
+5. If a user asks something completely outside of tax, financial calculations, bookkeeping, or corporate structures, politely remind them that you are restricted to tax intelligence operations only."""
 
 agent = create_react_agent(llm, tools, prompt=agent_system_prompt)
 
@@ -431,7 +470,7 @@ with st.sidebar:
         </div>
     """, unsafe_allow_html=True)
     
-    # ADVANCED SYSTEM ARCHITECTURE METRICS (EXPANDED TO MAXIMUM ENTERPRISE DETAIL)
+    # ADVANCED SYSTEM ARCHITECTURE METRICS
     st.markdown("<p style='font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; padding-left:5px;'>SYSTEM ARCHITECTURE STATUS</p>", unsafe_allow_html=True)
     
     vector_status = '<span style="background-color:rgba(52,211,153,0.1); color:#34d399; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; border:1px solid rgba(52,211,153,0.2);">ONLINE</span>' if vectorstore else '<span style="background-color:rgba(244,63,94,0.1); color:#f43f5e; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; border:1px solid rgba(244,63,94,0.2);">OFFLINE</span>'
@@ -517,15 +556,14 @@ if selected_page == "AI Invoice Generator":
         st.session_state["messages"].append({"role": "user", "content": user_query})
         st.session_state["langchain_history"].append(HumanMessage(content=user_query))
 
+        trigger_rerun = False
         with st.chat_message("assistant"):
             with st.spinner("Processing optimization pipelines..."):
                 try:
-                    # Run agent loops
                     response = agent.invoke({"messages": st.session_state["langchain_history"][-10:]})
                     st.session_state["langchain_history"] = response["messages"]
                     agent_reply = response["messages"][-1].content
                     
-                    # Tool tracing ring for file detection back-binding
                     for msg in reversed(response["messages"]):
                         if hasattr(msg, "tool_calls") and msg.tool_calls:
                             for tc in msg.tool_calls:
@@ -537,16 +575,20 @@ if selected_page == "AI Invoice Generator":
 
                     st.write(agent_reply)
                     st.session_state["messages"].append({"role": "ai", "content": agent_reply})
-                    
-                    # Synchronize the UI layer state variables immediately
-                    st.rerun()
+                    trigger_rerun = True
                     
                 except Exception as err:
                     st.error(f"Runtime Warning: {err}")
+        
+        if trigger_rerun:
+            st.rerun()
 
 elif selected_page == "Local Vector RAG Search":
     st.markdown("## 📊 Telemetry Clusters")
-    st.info("Performance loops, inference cost metrics, and embedding cluster indexes will monitor here.")
+    if not vectorstore:
+        st.warning("Telemetry Offline: Main vector index context layer loaded empty.")
+    else:
+        st.info("Performance loops, inference cost metrics, and embedding cluster indexes will monitor here.")
 
 elif selected_page == "System Settings Console":
     st.markdown("## ⚙️ Global Ledger Settings")
