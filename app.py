@@ -23,9 +23,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 
-# ============================================================
-# 🌌 DEEP SPACE CYBERPUNK SAAS DESIGN SYSTEM (ULTRA PREMIUM)
-# ============================================================
+#streamlit 
+
 st.set_page_config(
     page_title="PocketCA Pro • Premium", 
     page_icon="👑", 
@@ -161,9 +160,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ============================================================
-# INITIALIZATION & MACHINE LAYERS
-# ============================================================
+# API KEY 
+
 if not os.getenv("GROQ_API_KEY") and "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
@@ -192,9 +190,8 @@ def initialize_engines():
 
 llm, vectorstore, vectorstore_link = initialize_engines()
 
-# ============================================================
-# REPORTLAB HIGH-END MINIMALIST PDF GENERATOR 
-# ============================================================
+# INVOICE 
+
 def generate_invoice(invoice_no, company_name, client_name, client_phone, client_email, client_address, items, payment_method="Bank Transfer", bank_name="", bank_account=""):
     filename = f"invoice_{invoice_no}.pdf"
     c = canvas.Canvas(filename, pagesize=A4)
@@ -290,9 +287,8 @@ def generate_invoice(invoice_no, company_name, client_name, client_phone, client
     c.save()
     return filename
 
-# ============================================================
-# AGENT TOOL SETS WITH ENHANCED VALIDATION SCHEMAS
-# ============================================================
+#TOOLS 
+
 @tool
 def tax_saving(query: str) -> str:
     """Use this tool when user asks questions about saving taxes, tax deductions, 80C, 80D, HRA, or NPS rules.
@@ -326,7 +322,7 @@ def gst_calculator(amount: str, gst_rate: str = "18%", transction_type: str = "I
     """
     clean_amt = str(amount).lower().strip().replace(",", "").replace("rs", "").strip()
     
-    # Simple semantic conversion helper for Indian system inside tool bounds
+    # Simple
     if "lakh" in clean_amt:
         try:
             num_part = float(clean_amt.split("lakh")[0].strip())
@@ -395,9 +391,6 @@ def standard_lookup(query: str) -> str:
     except Exception:
         return "Search network currently resolving alternative routing."
 
-# ============================================================
-# AGENT INITIALIZATION WITH COGNITIVE INTERPRETATION BRAIN
-# ============================================================
 tools = [tax_saving, legal_section, gst_calculator, invoice_generator, standard_lookup]
 
 agent_system_prompt = """You are Pocket CA Premium Elite. You are an expert Indian finance AI.
@@ -412,9 +405,8 @@ CRITICAL INSTRUCTIONS FOR REASONING:
 
 agent = create_react_agent(llm, tools, prompt=agent_system_prompt)
 
-# ============================================================
-# 🗺️ PREMIUM NAVIGATION CONTROL CORE
-# ============================================================
+# UI/UX
+
 with st.sidebar:
     st.markdown("<div style='padding:15px 0px; text-align:center;'><h2 style='color:#ffffff; font-weight:900; font-size:1.6rem; letter-spacing:-0.04em;'>👑 POCKETCA<span style='color:#38bdf8;'>.PRO</span></h2></div>", unsafe_allow_html=True)
     
@@ -432,7 +424,7 @@ with st.sidebar:
         }
     )
 
-    # DOWNLOAD PIPELINE CONSOLE CARD
+    # DOWNLOAD PIPELINE
     if "last_generated_pdf" in st.session_state and st.session_state["last_generated_pdf"]:
         pdf_file = st.session_state["last_generated_pdf"]
         if os.path.exists(pdf_file):
